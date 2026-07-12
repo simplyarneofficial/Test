@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="PWA-Navigation für Fahrzeuge mit 45 km/h Höchstgeschwindigkeit.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Tempo45 Navi</title>
+</head>
+<body>
+  <div id="map" aria-label="Karte"></div>
+
+  <header class="topbar glass">
+    <div class="brand"><img src="./assets/icon.svg" alt=""><div><strong>Tempo45</strong><span>Routen für Leichtfahrzeuge</span></div></div>
+    <button id="settingsBtn" class="icon-btn" aria-label="Einstellungen">Einstellungen</button>
+  </header>
+
+  <main id="route-card" class="route-card glass">
+    <div class="field-row">
+      <span class="dot start-dot"></span>
+      <input id="startInput" autocomplete="off" placeholder="Startort oder aktueller Standort">
+      <button id="locateBtn" class="small-btn" title="Standort verwenden">Standort</button>
+    </div>
+    <div id="startResults" class="results"></div>
+    <div class="connector"></div>
+    <div class="field-row">
+      <span class="dot end-dot"></span>
+      <input id="endInput" autocomplete="off" placeholder="Ziel eingeben">
+    </div>
+    <div id="endResults" class="results"></div>
+
+    <div class="options">
+      <label><input id="avoidFerries" type="checkbox" checked> Fähren vermeiden</label>
+      <label><input id="preferQuiet" type="checkbox" checked> Ruhigere Straßen bevorzugen</label>
+    </div>
+
+    <button id="routeBtn" class="primary">45-km/h-Route berechnen</button>
+    <p id="status" class="status">Autobahnen und als Schnellstraßen klassifizierte Straßen werden ausgeschlossen.</p>
+  </main>
+
+  <section id="summary" class="summary glass hidden">
+    <div><span>Fahrzeit</span><strong id="duration">-</strong></div>
+    <div><span>Strecke</span><strong id="distance">-</strong></div>
+    <div><span>Ankunft</span><strong id="arrival">-</strong></div>
+    <button id="openNavBtn" class="primary">Navigation starten</button>
+  </section>
+
+  <section id="navPanel" class="nav-panel glass hidden">
+    <div class="nav-speed"><span>45</span><small>km/h Profil</small></div>
+    <div class="nav-info"><strong id="nextInstruction">Route folgen</strong><span id="remaining">-</span></div>
+    <button id="stopNavBtn" class="small-btn">Beenden</button>
+  </section>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="settings-card">
+      <h2>Einstellungen</h2>
+      <label>Routing-Modus
+        <select id="provider">
+          <option value="graphhopper">GraphHopper mit 45-km/h-Regeln</option>
+          <option value="demo">Kostenloser Demo-Modus</option>
+        </select>
+      </label>
+      <label>GraphHopper API-Key
+        <input id="apiKey" type="password" placeholder="Wird nur auf diesem Gerät gespeichert">
+      </label>
+      <p>Der Demo-Modus ist zum Testen gedacht. Für rechtlich verlässliche Routen muss ein Routing-Server OSM-Tags wie motorroad=yes ausdrücklich auswerten.</p>
+      <div class="dialog-actions"><button value="cancel">Abbrechen</button><button id="saveSettings" value="default" class="primary">Speichern</button></div>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="./app.js" type="module"></script>
+</body>
+</html>
