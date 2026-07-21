@@ -1,0 +1,167 @@
+:root { font-family: Inter, system-ui, Arial, sans-serif; color-scheme: dark; --bg:#0b1020; --card:#151c2f; --muted:#a8b2c3; --accent:#38bdf8; }
+* { box-sizing:border-box; }
+html,body,#app { width:100%; height:100%; margin:0; overflow:hidden; background:var(--bg); }
+body { color:#f8fafc; }
+#app { position:relative; }
+#map { position:absolute; inset:88px 0 0; z-index:1; }
+.topbar { position:absolute; z-index:1000; top:0; left:0; right:0; height:88px; padding:calc(12px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left)); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(180deg,rgba(11,16,32,.99),rgba(11,16,32,.9)); }
+h1 { margin:0; font-size:22px; }
+p { margin:4px 0 0; color:var(--muted); font-size:12px; }
+button,input { font:inherit; }
+button { border:0; border-radius:14px; padding:12px 14px; background:#26324c; color:white; font-weight:700; cursor:pointer; }
+button:active { transform:scale(.98); }
+button:disabled { opacity:.55; cursor:wait; }
+.primary { background:var(--accent); color:#062033; width:100%; }
+.small-button { width:auto; }
+.search-card { position:absolute; z-index:1001; top:100px; left:12px; width:min(390px,calc(100% - 24px)); background:rgba(21,28,47,.96); padding:14px; border-radius:20px; box-shadow:0 16px 50px rgba(0,0,0,.35); backdrop-filter:blur(16px); }
+.search-card label { display:block; font-size:12px; color:var(--muted); margin:8px 0 5px; }
+input { width:100%; border:1px solid #33415f; background:#0e1528; color:white; border-radius:14px; padding:13px; outline:none; }
+input:focus { border-color:var(--accent); }
+.input-row { display:grid; grid-template-columns:1fr auto; gap:8px; }
+.mode-row { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin:12px 0; }
+.mode { padding:10px 5px; font-size:12px; }
+.mode.active { background:#e0f2fe; color:#082f49; }
+.suggestions { position:relative; z-index:5; max-height:170px; overflow:auto; }
+.suggestion { display:block; width:100%; text-align:left; margin-top:4px; background:#202a42; font-size:13px; font-weight:500; }
+.warning { line-height:1.35; margin-top:10px; }
+.route-summary { position:absolute; z-index:1002; left:12px; right:12px; bottom:max(12px,env(safe-area-inset-bottom)); background:rgba(21,28,47,.97); padding:14px; border-radius:20px; display:grid; grid-template-columns:1fr 1fr 1.4fr; align-items:center; gap:12px; box-shadow:0 12px 40px rgba(0,0,0,.4); }
+.route-summary div { display:flex; flex-direction:column; }
+.route-summary span { color:var(--muted); font-size:11px; }
+.navigation-panel { position:absolute; z-index:1003; top:100px; left:12px; right:12px; padding:14px; border-radius:22px; background:rgba(21,28,47,.98); display:grid; grid-template-columns:64px 1fr 62px auto; gap:12px; align-items:center; }
+.maneuver-icon { font-size:50px; text-align:center; color:var(--accent); }
+.instruction-wrap { display:flex; flex-direction:column; }
+.instruction-wrap span { color:var(--muted); }
+#speedBox { display:flex; flex-direction:column; text-align:center; border:2px solid white; border-radius:50%; width:58px; height:58px; justify-content:center; }
+#speedBox span { font-size:9px; }
+.status { position:absolute; z-index:2000; left:50%; bottom:100px; transform:translateX(-50%); background:#111827; padding:12px 16px; border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.4); max-width:90%; text-align:center; }
+.hidden { display:none !important; }
+@media (max-width:600px) { .navigation-panel { grid-template-columns:54px 1fr 58px; } #stopNavigationBtn { grid-column:1/-1; } .route-summary { grid-template-columns:1fr 1fr; } .route-summary .primary { grid-column:1/-1; } }
+
+.navigation-active #map { inset:0; }
+.navigation-active .topbar { display:none; }
+.navigation-panel {
+  top:max(12px,env(safe-area-inset-top));
+  grid-template-columns:72px 1fr auto;
+  min-height:94px;
+  background:rgba(13,20,36,.97);
+}
+.instruction-distance { color:#dbeafe !important; font-size:15px; font-weight:800; margin-bottom:3px; }
+.instruction-wrap strong { font-size:19px; line-height:1.2; }
+.stop-button { padding:10px 12px; background:#2b354b; }
+.maneuver-icon { position:relative; width:58px; height:68px; margin:auto; }
+.maneuver-icon::before,.maneuver-icon::after { content:""; position:absolute; display:block; background:var(--accent); }
+.maneuver-icon.straight::before { width:13px; height:52px; left:23px; top:13px; border-radius:8px; }
+.maneuver-icon.straight::after { width:30px; height:30px; left:14px; top:1px; transform:rotate(45deg); clip-path:polygon(0 0,100% 0,100% 100%); }
+.maneuver-icon.left::before { width:13px; height:48px; left:25px; top:17px; border-radius:8px; }
+.maneuver-icon.left::after { width:38px; height:38px; left:7px; top:3px; border-left:13px solid var(--accent); border-top:13px solid var(--accent); background:transparent; border-radius:7px 0 0 0; transform:rotate(-2deg); }
+.maneuver-icon.right { transform:scaleX(-1); }
+.maneuver-icon.right::before { width:13px; height:48px; left:25px; top:17px; border-radius:8px; }
+.maneuver-icon.right::after { width:38px; height:38px; left:7px; top:3px; border-left:13px solid var(--accent); border-top:13px solid var(--accent); background:transparent; border-radius:7px 0 0 0; transform:rotate(-2deg); }
+.maneuver-icon.arrive::before { width:34px; height:34px; left:12px; top:12px; border:9px solid var(--accent); border-radius:50%; background:transparent; }
+.maneuver-icon.arrive::after { width:10px; height:10px; left:24px; top:24px; border-radius:50%; }
+.navigation-footer { position:absolute; z-index:1003; left:12px; right:12px; bottom:max(12px,env(safe-area-inset-bottom)); padding:12px; border-radius:20px; background:rgba(13,20,36,.97); display:grid; grid-template-columns:repeat(3,1fr) 62px auto; gap:10px; align-items:center; box-shadow:0 12px 40px rgba(0,0,0,.45); }
+.navigation-footer>div:not(#speedBox) { display:flex; flex-direction:column; min-width:0; }
+.navigation-footer>div:not(#speedBox) strong { font-size:18px; white-space:nowrap; }
+.navigation-footer>div:not(#speedBox) span { color:var(--muted); font-size:10px; }
+.recenter-button { padding:11px 12px; }
+.position-marker-wrapper { background:transparent; border:0; }
+.position-arrow { position:relative; width:46px; height:46px; filter:drop-shadow(0 3px 5px rgba(0,0,0,.55)); transition:transform .35s linear; }
+.position-arrow::before { content:""; position:absolute; left:8px; top:4px; width:30px; height:36px; background:#eaf7ff; clip-path:polygon(50% 0,100% 100%,50% 78%,0 100%); }
+.position-arrow::after { content:""; position:absolute; left:14px; top:11px; width:18px; height:23px; background:#1687d9; clip-path:polygon(50% 0,100% 100%,50% 77%,0 100%); }
+.position-arrow span { position:absolute; width:12px; height:12px; left:17px; top:20px; background:#1687d9; border:3px solid white; border-radius:50%; z-index:2; }
+.leaflet-control-zoom { margin-bottom:110px !important; }
+@media (max-width:700px) {
+  .navigation-panel { grid-template-columns:62px 1fr auto; left:8px; right:8px; padding:10px; }
+  .instruction-wrap strong { font-size:17px; }
+  .navigation-footer { left:8px; right:8px; grid-template-columns:repeat(3,1fr) 56px; }
+  .navigation-footer .recenter-button { grid-column:1/-1; padding:9px; }
+  #speedBox { width:54px; height:54px; }
+}
+
+/* Optimierte Live-Navigation im Querformat */
+@media (orientation: landscape) and (max-height: 600px) {
+  .navigation-active .navigation-panel {
+    top:max(8px,env(safe-area-inset-top));
+    bottom:max(8px,env(safe-area-inset-bottom));
+    left:max(8px,env(safe-area-inset-left));
+    right:auto;
+    width:min(330px,42vw);
+    min-height:0;
+    padding:12px;
+    grid-template-columns:58px 1fr;
+    grid-template-rows:auto 1fr auto;
+    align-items:start;
+    border-radius:18px;
+  }
+  .navigation-active .maneuver-icon {
+    grid-column:1;
+    grid-row:1 / span 2;
+    width:52px;
+    height:62px;
+    transform:scale(.9);
+    transform-origin:top center;
+  }
+  .navigation-active .maneuver-icon.right { transform:scaleX(-1) scale(.9); }
+  .navigation-active .instruction-wrap {
+    grid-column:2;
+    grid-row:1 / span 2;
+    min-width:0;
+    padding-right:2px;
+  }
+  .navigation-active .instruction-distance {
+    font-size:14px;
+    margin-bottom:2px;
+  }
+  .navigation-active .instruction-wrap strong {
+    font-size:17px;
+    line-height:1.18;
+    overflow-wrap:anywhere;
+  }
+  .navigation-active .stop-button {
+    grid-column:1 / -1;
+    grid-row:3;
+    width:100%;
+    padding:8px 10px;
+    margin-top:8px;
+  }
+  .navigation-active .navigation-footer {
+    left:auto;
+    right:max(8px,env(safe-area-inset-right));
+    bottom:max(8px,env(safe-area-inset-bottom));
+    width:min(520px,55vw);
+    padding:9px 10px;
+    grid-template-columns:repeat(3,minmax(62px,1fr)) 52px auto;
+    gap:8px;
+    border-radius:17px;
+  }
+  .navigation-active .navigation-footer>div:not(#speedBox) strong { font-size:15px; }
+  .navigation-active .navigation-footer>div:not(#speedBox) span { font-size:9px; }
+  .navigation-active #speedBox { width:48px; height:48px; }
+  .navigation-active .recenter-button {
+    grid-column:auto;
+    padding:9px 10px;
+    font-size:12px;
+  }
+  .navigation-active .leaflet-control-zoom {
+    margin-bottom:72px !important;
+  }
+  .navigation-active .leaflet-control-attribution {
+    max-width:42vw;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 430px) {
+  .navigation-active .navigation-panel { width:min(290px,39vw); padding:9px; }
+  .navigation-active .instruction-wrap strong { font-size:15px; }
+  .navigation-active .instruction-distance { font-size:12px; }
+  .navigation-active .maneuver-icon { transform:scale(.76); }
+  .navigation-active .maneuver-icon.right { transform:scaleX(-1) scale(.76); }
+  .navigation-active .stop-button { margin-top:3px; padding:6px 8px; }
+  .navigation-active .navigation-footer { width:min(500px,58vw); padding:7px 8px; }
+  .navigation-active .navigation-footer>div:not(#speedBox) strong { font-size:14px; }
+  .navigation-active #speedBox { width:44px; height:44px; }
+  .navigation-active .recenter-button { padding:7px 8px; }
+}
