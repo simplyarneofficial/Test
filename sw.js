@@ -4,7 +4,7 @@ const FILES = [
   './index.html',
   './assets/css/app.css',
   './assets/js/app.js',
-  './assets/icons/icon.svg',
+  './assets/icons/D14049FE-06CA-4642-82EB-8F91954CB549.png',
   './manifest.webmanifest'
 ];
 
