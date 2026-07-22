@@ -1,4 +1,4 @@
-const CACHE='moped-navigator-shell-4';
+const CACHE='moped-navigator-shell-3';
 const FILES=['./','./index.html','./assets/css/app.css','./assets/js/app.js','./assets/icons/D14049FE-06CA-4642-82EB-8F91954CB549.png','./manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
