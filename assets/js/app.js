@@ -1,72 +1,11 @@
 const $=id=>document.getElementById(id);
-const state={map:null,gps:null,lastGps:null,display:null,target:null,userMarker:null,route:null,routeLine:null,routeArrowGroup:null,watchId:null,navigation:false,currentStep:0,voice:true,profile:'safe',speedSamples:[],spoken:new Set(),animating:false,autocompleteTimers:new Map(),selected:{start:null,destination:null},routeProgress:0,lastRouteIndex:0,lastProjection:null,lastManeuverDistance:null,lastManeuverKey:null,lastNavUpdate:0};
+const state={map:null,gps:null,lastGps:null,display:null,target:null,userMarker:null,route:null,routeLine:null,routeArrowGroup:null,routeArrowLine:null,routeArrowOutline:null,routeArrowHead:null,watchId:null,navigation:false,currentStep:0,voice:true,profile:'safe',speedSamples:[],spoken:new Set(),animating:false,autocompleteTimers:new Map(),selected:{start:null,destination:null},routeProgress:0,lastRouteIndex:0,lastProjection:null,lastManeuverDistance:null,lastManeuverKey:null,lastNavUpdate:0};
 
 const map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([51.756,14.335],13);state.map=map;
 map.createPane('routePane');map.getPane('routePane').classList.add('leaflet-route-pane');
 map.createPane('arrowPane');map.getPane('arrowPane').classList.add('leaflet-arrow-pane');
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
 const vehicleIcon=L.divIcon({className:'',iconSize:[40,40],iconAnchor:[20,20],html:'<div class="vehicle"><svg viewBox="0 0 48 48"><path d="M24 4 40 42 24 33 8 42 24 4Z" fill="#168eff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg></div>'});
-
-const TurnArrowLayer=L.Layer.extend({
-  initialize(points){this.points=points},
-  onAdd(map){
-    this._map=map;
-    this._svg=L.DomUtil.create('svg','turn-arrow-svg');
-    this._svg.setAttribute('aria-hidden','true');
-    this._svg.style.position='absolute';
-    this._svg.style.left='0';
-    this._svg.style.top='0';
-    this._svg.style.pointerEvents='none';
-    this._svg.style.overflow='visible';
-    this._defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
-    this._marker=document.createElementNS('http://www.w3.org/2000/svg','marker');
-    const markerId=`turn-arrow-head-${L.Util.stamp(this)}`;
-    this._marker.setAttribute('id',markerId);
-    this._marker.setAttribute('markerWidth','5.4');
-    this._marker.setAttribute('markerHeight','5.4');
-    this._marker.setAttribute('refX','4.6');
-    this._marker.setAttribute('refY','2.7');
-    this._marker.setAttribute('orient','auto');
-    this._marker.setAttribute('markerUnits','strokeWidth');
-    const head=document.createElementNS('http://www.w3.org/2000/svg','path');
-    head.setAttribute('d','M 0 0 L 5.4 2.7 L 0 5.4 L 1.35 2.7 Z');
-    head.setAttribute('fill','#ffffff');
-    head.setAttribute('stroke','#2532a6');
-    head.setAttribute('stroke-width','.75');
-    head.setAttribute('stroke-linejoin','round');
-    this._marker.appendChild(head);
-    this._defs.appendChild(this._marker);
-    this._svg.appendChild(this._defs);
-    this._path=document.createElementNS('http://www.w3.org/2000/svg','path');
-    this._path.setAttribute('fill','none');
-    this._path.setAttribute('stroke','#ffffff');
-    this._path.setAttribute('stroke-width','8');
-    this._path.setAttribute('stroke-linecap','round');
-    this._path.setAttribute('stroke-linejoin','round');
-    this._path.setAttribute('marker-end',`url(#${markerId})`);
-    this._path.style.filter='drop-shadow(0 0 2px #2532a6) drop-shadow(0 2px 3px rgba(0,0,0,.35))';
-    this._svg.appendChild(this._path);
-    map.getContainer().appendChild(this._svg);
-    this._svg.style.zIndex='445';
-    map.on('zoom viewreset move resize',this._update,this);
-    this._update();
-  },
-  onRemove(map){
-    map.off('zoom viewreset move resize',this._update,this);
-    this._svg?.remove();
-  },
-  _update(){
-    if(!this._map||!this.points?.length)return;
-    const size=this._map.getSize();
-    this._svg.setAttribute('width',size.x);
-    this._svg.setAttribute('height',size.y);
-    this._svg.setAttribute('viewBox',`0 0 ${size.x} ${size.y}`);
-    const screen=this.points.map(point=>this._map.latLngToContainerPoint(point));
-    if(screen.length<2)return;
-    const d=screen.map((point,index)=>`${index?'L':'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
-    this._path.setAttribute('d',d);
-  }
-});
 
 
 const hidden=(id,value)=>$(id).classList.toggle('hidden',value);
@@ -246,14 +185,23 @@ function projectToRoute(pos){
   return best;
 }
 function nextManeuverIndex(progress){
-  for(let i=0;i<state.route.steps.length;i++){
-    const step=state.route.steps[i];
-    if(isActualManeuver(step)&&step._routeDistance>progress-18)return i;
+  const steps=state.route?.steps||[];
+  for(let i=0;i<steps.length;i++){
+    const step=steps[i];
+    if(isActualManeuver(step)&&Number.isFinite(step._routeDistance)&&step._routeDistance>progress+4)return i;
   }
-  return state.route.steps.length-1;
+  return Math.max(0,steps.length-1);
 }
 function remainingDistanceFromProgress(progress){return Math.max(0,(state.route.totalLength||0)-progress)}
-function clearRouteArrow(){if(state.routeArrowGroup){map.removeLayer(state.routeArrowGroup);state.routeArrowGroup=null}}
+function clearRouteArrow(){
+  for(const layer of [state.routeArrowHead,state.routeArrowLine,state.routeArrowOutline]){
+    if(layer&&map.hasLayer(layer))map.removeLayer(layer);
+  }
+  state.routeArrowHead=null;
+  state.routeArrowLine=null;
+  state.routeArrowOutline=null;
+  state.routeArrowGroup=null;
+}
 function pointAtRouteDistance(routeDistance){
   const route=state.route;if(!route?.coords?.length)return null;
   const target=Math.max(0,Math.min(route.totalLength,routeDistance));
@@ -283,18 +231,43 @@ function geometryAroundManeuver(stepIndex,progress=state.routeProgress){
   const step=state.route.steps[stepIndex];
   if(!step||!Number.isFinite(step._routeDistance))return[];
   const roundabout=isRoundaboutStep(step);
-  const beforeMeters=roundabout?55:45,afterMeters=roundabout?150:80;
-  const start=Math.max(progress+2,step._routeDistance-beforeMeters);
+  const beforeMeters=roundabout?70:55;
+  const afterMeters=roundabout?170:95;
+  const start=Math.max(progress+1,step._routeDistance-beforeMeters);
   const end=step._routeDistance+afterMeters;
   return routeSlice(start,end);
+}
+function arrowHeadIcon(angle){
+  return L.divIcon({
+    className:'turn-arrow-head-wrap',
+    iconSize:[34,34],
+    iconAnchor:[17,17],
+    html:`<div class="turn-arrow-head" style="transform:rotate(${angle}deg)"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M7 5 L34 20 L7 35 L13 20 Z"/></svg></div>`
+  });
 }
 function drawNextArrow(stepIndex,progress=state.routeProgress){
   clearRouteArrow();
   const step=state.route?.steps?.[stepIndex];
-  if(!step||!isActualManeuver(step))return;
+  if(!step||!isActualManeuver(step)||!Number.isFinite(step._routeDistance))return;
+  const distanceToTurn=step._routeDistance-progress;
+  if(distanceToTurn>900||distanceToTurn<-20)return;
   const points=geometryAroundManeuver(stepIndex,progress);
   if(points.length<2)return;
-  state.routeArrowGroup=new TurnArrowLayer(points).addTo(map);
+
+  state.routeArrowOutline=L.polyline(points,{
+    pane:'arrowPane',color:'#243190',weight:15,opacity:.95,
+    lineCap:'round',lineJoin:'round',interactive:false
+  }).addTo(map);
+  state.routeArrowLine=L.polyline(points,{
+    pane:'arrowPane',color:'#fff',weight:9,opacity:1,
+    lineCap:'round',lineJoin:'round',interactive:false
+  }).addTo(map);
+
+  const end=points.at(-1),before=points.at(-2);
+  const angle=bearing({lat:before[0],lng:before[1]},{lat:end[0],lng:end[1]});
+  state.routeArrowHead=L.marker(end,{
+    pane:'arrowPane',icon:arrowHeadIcon(angle),interactive:false,keyboard:false,zIndexOffset:2000
+  }).addTo(map);
 }
 function speechThresholds(distanceToManeuver){
   const all=[5000,2000,1000,500,250,100,50,10];
