@@ -21,15 +21,6 @@ Eine installierbare Moped-Navigation als statische PWA. Das gesamte Repository k
 - Sprachansagen ein- und ausschalten
 - letzte Ziele lokal auf dem Gerät speichern
 
-## Auf GitHub hochladen
-
-1. Erstelle ein neues leeres GitHub-Repository.
-2. Lade den Inhalt dieses Hauptordners direkt in das Repository hoch. `index.html` muss oben im Repository liegen.
-3. Öffne im Repository `Settings` und danach `Pages`.
-4. Stelle unter `Build and deployment` die Quelle auf `GitHub Actions`.
-5. Öffne den Tab `Actions` und warte, bis `GitHub Pages veröffentlichen` erfolgreich abgeschlossen ist.
-6. Die Adresse steht danach unter `Settings` > `Pages`.
-
 ## Installation auf dem iPhone
 
 1. Öffne die GitHub-Pages-Adresse in Safari.
@@ -61,47 +52,14 @@ Bitte die öffentlichen Dienste nicht für sehr viele automatisierte Anfragen od
 
 Nach dem Start der Navigation zeigt die App einen GPS-Positionspfeil, der sich nach der Fahrtrichtung dreht. Die Karte folgt dem aktuellen Standort. Oben stehen der nächste Abbiegeschritt und die Entfernung bis dorthin. Unten stehen Restzeit, voraussichtliche Ankunft, Reststrecke und aktuelle GPS-Geschwindigkeit. Beim Verschieben der Karte kann sie mit "Zentrieren" wieder an den Standort gekoppelt werden. Verlässt man die Route deutlich, wird sie automatisch neu berechnet.
 
-
 ## Querformat
 
 Während der Navigation wird im Querformat die Abbiegeanzeige links als schmale Seitenleiste dargestellt. Restzeit, Ankunft, Reststrecke und Geschwindigkeit liegen kompakt unten rechts. Die Kartenposition wird leicht versetzt, damit der vorausliegende Routenabschnitt besser sichtbar bleibt.
-
-
-## Version 4
-
-Während der Live-Navigation wird die Karte automatisch nach der aktuellen Fahrtrichtung gedreht. Die Route verläuft dadurch immer nach oben, senkrecht zum unteren Bildschirmrand. Der Fahrzeugpfeil bleibt aufrecht und auf der Route eingerastet.
-
-
-## Version 5
-
-Zwischenstopps können vor der Berechnung hinzugefügt, entfernt und in ihrer Reihenfolge verschoben werden. BRouter erhält Start, alle Zwischenstopps und Ziel in einer gemeinsamen Anfrage. Bei einer automatischen Neuberechnung werden nur noch die Stopps verwendet, die auf der restlichen Route vor dem Fahrzeug liegen. Zusätzlich gibt es eine Routenübersicht, eine Stummschaltung für Sprachansagen, eine Tauschen-Funktion für Start und Ziel sowie lokal gespeicherte letzte Ziele.
-
-## Version 6 - Redesign und realistischere Fahrzeit
-
-- Vollständig neues responsives Design für Hoch- und Querformat
-- Sichere Abstände für iPhone-Notch, Dynamic Island und Home-Indikator
-- Aufgeräumte Navigationselemente ohne überlaufende Buttons
-- Bestätigungsdialog zum Beenden der Navigation
-- Fahrzeitmodell speziell für 45-km/h-Fahrzeuge
-- Fahrzeiten berücksichtigen Ortschaften, Ampeln, Abbiegungen und Zwischenstopps
-- Modernere Routenübersicht, Navigationskarten und Bedienelemente
-
-Die ETA ist eine Schätzung. Verkehr, Baustellen und längere Stopps sind nicht live enthalten.
-
 
 ## Sprachausgabe
 
 Die Navigation nutzt die im Gerät vorhandene deutsche Systemstimme. Ansagen erfolgen ungefähr 500 Meter, 200 Meter und unmittelbar vor dem Abbiegen. Zusätzlich werden Navigationstart, Neuberechnung, Zwischenstopps und Zielankunft angesagt. Stimme, Lautstärke und Tempo lassen sich während der Navigation über **Stimme** einstellen. Auf iPhone muss die erste Sprachausgabe gegebenenfalls durch einen direkten Fingertipp freigeschaltet werden.
 
-
 ## Verbesserte Abbiegehinweise (V8)
 
 Die App erkennt Richtungsänderungen jetzt distanzbasiert entlang der gesamten Route. Dadurch werden auch kurze, direkt aufeinanderfolgende und leichte Abbiegungen deutlich zuverlässiger angezeigt und angesagt. Unter dem aktuellen Manöver wird zusätzlich das danach folgende Manöver eingeblendet. Da der öffentliche BRouter-Endpunkt in dieser Konfiguration keine vollständigen straßennamengenauen Manöver liefert, werden die Hinweise weiterhin aus der Routengeometrie berechnet. Beschilderung und Straßenverlauf vor Ort haben Vorrang.
-
-## Version 9: Kreisverkehre und genauere Manöver
-
-- Kreisverkehre werden zusätzlich über aktuelle OpenStreetMap-Daten des öffentlichen Overpass-Dienstes erkannt.
-- Die App versucht die genutzte Ausfahrt zu zählen und zeigt sowie spricht zum Beispiel: "Im Kreisverkehr die 2. Ausfahrt nehmen".
-- Anzeige und Sprachausgabe nutzen exakt dieselbe Manöverdefinition, damit keine widersprüchlichen Hinweise entstehen.
-- Zusätzliche Varianten: links/rechts halten, leicht links/rechts, halb links/rechts, normal links/rechts, scharf links/rechts und wenden.
-- Ist der Overpass-Dienst vorübergehend nicht erreichbar, bleibt die normale geometrische Manövererkennung aktiv.
