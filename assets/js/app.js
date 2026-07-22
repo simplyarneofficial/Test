@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const state={map:null,gps:null,lastGps:null,display:null,target:null,userMarker:null,route:null,routeLine:null,routeArrowGroup:null,watchId:null,navigation:false,currentStep:0,voice:true,profile:'safe',speedSamples:[],spoken:new Set(),animating:false,autocompleteTimers:new Map(),selected:{start:null,destination:null},routeProgress:0,lastRouteIndex:0,lastManeuverDistance:null,lastManeuverKey:null,lastNavUpdate:0};
+const state={map:null,gps:null,lastGps:null,display:null,target:null,userMarker:null,route:null,routeLine:null,routeArrowGroup:null,watchId:null,navigation:false,currentStep:0,voice:true,profile:'safe',speedSamples:[],spoken:new Set(),animating:false,autocompleteTimers:new Map(),selected:{start:null,destination:null},routeProgress:0,lastRouteIndex:0,lastProjection:null,lastManeuverDistance:null,lastManeuverKey:null,lastNavUpdate:0};
 
 const map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([51.756,14.335],13);state.map=map;
 map.createPane('routePane');map.getPane('routePane').classList.add('leaflet-route-pane');
@@ -248,31 +248,52 @@ function projectToRoute(pos){
 function nextManeuverIndex(progress){
   for(let i=0;i<state.route.steps.length;i++){
     const step=state.route.steps[i];
-    if(isActualManeuver(step)&&step._routeDistance>progress+7)return i;
+    if(isActualManeuver(step)&&step._routeDistance>progress-18)return i;
   }
   return state.route.steps.length-1;
 }
 function remainingDistanceFromProgress(progress){return Math.max(0,(state.route.totalLength||0)-progress)}
 function clearRouteArrow(){if(state.routeArrowGroup){map.removeLayer(state.routeArrowGroup);state.routeArrowGroup=null}}
-function geometryAroundManeuver(stepIndex){
-  const step=state.route.steps[stepIndex];
-  const routeIndex=step?._routeIndex;
-  if(!Number.isFinite(routeIndex))return[];
-  const roundabout=isRoundaboutStep(step);
-  const beforeMeters=roundabout?45:38,afterMeters=roundabout?120:65;
-  let start=routeIndex,end=routeIndex;
-  while(start>0&&state.route.cumulative[routeIndex]-state.route.cumulative[start]<beforeMeters)start--;
-  while(end<state.route.coords.length-1&&state.route.cumulative[end]-state.route.cumulative[routeIndex]<afterMeters)end++;
-  return state.route.coords.slice(start,end+1).map(([lat,lng])=>[lat,lng]);
+function pointAtRouteDistance(routeDistance){
+  const route=state.route;if(!route?.coords?.length)return null;
+  const target=Math.max(0,Math.min(route.totalLength,routeDistance));
+  let low=0,high=route.cumulative.length-1;
+  while(low<high){const mid=Math.floor((low+high+1)/2);if(route.cumulative[mid]<=target)low=mid;else high=mid-1}
+  const index=Math.min(low,route.coords.length-2),a=route.coords[index],b=route.coords[index+1];
+  const start=route.cumulative[index],end=route.cumulative[index+1],t=end>start?(target-start)/(end-start):0;
+  return{lat:a[0]+(b[0]-a[0])*t,lng:a[1]+(b[1]-a[1])*t,index};
 }
-function drawNextArrow(stepIndex){
+function routeSlice(startDistance,endDistance){
+  const route=state.route;if(!route)return[];
+  const start=Math.max(0,startDistance),end=Math.min(route.totalLength,endDistance);
+  if(end<=start)return[];
+  const first=pointAtRouteDistance(start),last=pointAtRouteDistance(end);
+  if(!first||!last)return[];
+  const points=[[first.lat,first.lng]];
+  for(let i=first.index+1;i<=last.index;i++)points.push(route.coords[i]);
+  points.push([last.lat,last.lng]);
+  return points.filter((point,index,array)=>index===0||point[0]!==array[index-1][0]||point[1]!==array[index-1][1]);
+}
+function updateRemainingRoute(projection){
+  if(!state.routeLine||!state.route||!projection)return;
+  const points=routeSlice(projection.progress,state.route.totalLength);
+  if(points.length>1)state.routeLine.setLatLngs(points);
+}
+function geometryAroundManeuver(stepIndex,progress=state.routeProgress){
+  const step=state.route.steps[stepIndex];
+  if(!step||!Number.isFinite(step._routeDistance))return[];
+  const roundabout=isRoundaboutStep(step);
+  const beforeMeters=roundabout?55:45,afterMeters=roundabout?150:80;
+  const start=Math.max(progress+2,step._routeDistance-beforeMeters);
+  const end=step._routeDistance+afterMeters;
+  return routeSlice(start,end);
+}
+function drawNextArrow(stepIndex,progress=state.routeProgress){
   clearRouteArrow();
   const step=state.route?.steps?.[stepIndex];
   if(!step||!isActualManeuver(step))return;
-  const points=geometryAroundManeuver(stepIndex);
+  const points=geometryAroundManeuver(stepIndex,progress);
   if(points.length<2)return;
-  const bounds=L.latLngBounds(points);
-  if(!map.getBounds().pad(.2).intersects(bounds))return;
   state.routeArrowGroup=new TurnArrowLayer(points).addTo(map);
 }
 function speechThresholds(distanceToManeuver){
@@ -311,13 +332,15 @@ function speak(step,stepIndex,dist,ins,projection){
     }
   }
 }
-function updateNavigation(pos){
+function updateNavigation(pos,knownProjection=null){
   if(!state.navigation||!state.route||!pos)return;
   const now=performance.now();
-  if(now-state.lastNavUpdate<250)return;
+  if(now-state.lastNavUpdate<250&&knownProjection==null)return;
   state.lastNavUpdate=now;
-  const projection=projectToRoute(pos);
+  const projection=knownProjection||projectToRoute(pos);
+  state.lastProjection=projection;
   const progress=Math.max(state.routeProgress,projection.progress);
+  updateRemainingRoute({...projection,progress});
   const stepIndex=nextManeuverIndex(progress);
   if(stepIndex!==state.currentStep){state.currentStep=stepIndex;state.lastManeuverDistance=null;state.lastManeuverKey=null}
   const step=state.route.steps[stepIndex];
@@ -328,7 +351,7 @@ function updateNavigation(pos){
   $('instructionDistance').textContent=dist<12?'Jetzt':fmtDistance(dist);
   $('instructionText').textContent=ins.text;
   $('instructionRoad').textContent=ins.road;
-  drawNextArrow(stepIndex);
+  drawNextArrow(stepIndex,progress);
   const left=remainingDistanceFromProgress(progress);
   const measured=state.speedSamples.length?state.speedSamples.reduce((a,b)=>a+b,0)/state.speedSamples.length:0;
   const speed=Math.max(3.5,measured||8);
@@ -338,12 +361,31 @@ function updateNavigation(pos){
   $('arrivalTime').textContent=new Date(Date.now()+seconds*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
   speak(step,stepIndex,dist,ins,projection);
 }
-function onGps(position){const c=position.coords,now=performance.now(),raw={lat:c.latitude,lng:c.longitude,heading:Number.isFinite(c.heading)?c.heading:null,speed:Number.isFinite(c.speed)?c.speed:null,time:now};if(state.lastGps){const dt=(now-state.lastGps.time)/1000,calculated=dt>.25?distance(state.lastGps,raw)/dt:null,chosen=raw.speed!=null&&raw.speed>.3?raw.speed:calculated;if(Number.isFinite(chosen)&&chosen<45){state.speedSamples.push(chosen);if(state.speedSamples.length>8)state.speedSamples.shift()}}state.lastGps=raw;state.gps=raw;state.target=raw;if(!state.display)state.display={...raw,heading:raw.heading||0};$('gpsBadge').textContent=`GPS ±${Math.round(c.accuracy)} m`;if(!state.userMarker)state.userMarker=L.marker([raw.lat,raw.lng],{icon:vehicleIcon,zIndexOffset:1000}).addTo(map);if(!state.animating){state.animating=true;requestAnimationFrame(animate)}if(state.navigation)updateNavigation(raw)}
+function onGps(position){
+  const c=position.coords,now=performance.now();
+  const raw={lat:c.latitude,lng:c.longitude,heading:Number.isFinite(c.heading)?c.heading:null,speed:Number.isFinite(c.speed)?c.speed:null,time:now};
+  if(state.lastGps){const dt=(now-state.lastGps.time)/1000,calculated=dt>.25?distance(state.lastGps,raw)/dt:null,chosen=raw.speed!=null&&raw.speed>.3?raw.speed:calculated;if(Number.isFinite(chosen)&&chosen<45){state.speedSamples.push(chosen);if(state.speedSamples.length>8)state.speedSamples.shift()}}
+  state.lastGps=raw;state.gps=raw;
+  let markerTarget=raw,projection=null;
+  if(state.navigation&&state.route){
+    projection=projectToRoute(raw);
+    const routeA=state.route.coords[projection.index],routeB=state.route.coords[Math.min(projection.index+1,state.route.coords.length-1)];
+    const routeHeading=routeA&&routeB?bearing({lat:routeA[0],lng:routeA[1]},{lat:routeB[0],lng:routeB[1]}):raw.heading;
+    markerTarget={...raw,lat:projection.lat,lng:projection.lng,heading:routeHeading};
+    state.lastProjection=projection;
+  }
+  state.target=markerTarget;
+  if(!state.display)state.display={...markerTarget,heading:markerTarget.heading||0};
+  $('gpsBadge').textContent=`GPS ±${Math.round(c.accuracy)} m`;
+  if(!state.userMarker)state.userMarker=L.marker([markerTarget.lat,markerTarget.lng],{icon:vehicleIcon,zIndexOffset:1000}).addTo(map);
+  if(!state.animating){state.animating=true;requestAnimationFrame(animate)}
+  if(state.navigation)updateNavigation(raw,projection);
+}
 function animate(){if(state.display&&state.target&&state.userMarker){state.display.lat+=(state.target.lat-state.display.lat)*.09;state.display.lng+=(state.target.lng-state.display.lng)*.09;const desired=state.target.heading??bearing(state.display,state.target);state.display.heading=smoothAngle(state.display.heading||0,desired||0);state.userMarker.setLatLng([state.display.lat,state.display.lng]);const el=state.userMarker.getElement()?.querySelector('.vehicle');if(el)el.style.transform=`rotate(${state.display.heading}deg)`;if(state.navigation){const point=map.latLngToContainerPoint([state.display.lat,state.display.lng]),wanted=L.point(map.getSize().x*.5,map.getSize().y*.62);if(point.distanceTo(wanted)>95)map.panTo([state.display.lat,state.display.lng],{animate:true,duration:.45})}}requestAnimationFrame(animate)}
 function startGps(){if(!navigator.geolocation){$('gpsBadge').textContent='GPS fehlt';return}state.watchId=navigator.geolocation.watchPosition(onGps,()=>{$('gpsBadge').textContent='GPS nicht verfügbar'},{enableHighAccuracy:true,maximumAge:500,timeout:15000})}
 
-function startNavigation(){if(!state.route)return;state.navigation=true;state.spoken.clear();state.routeProgress=0;state.lastRouteIndex=0;state.lastManeuverDistance=null;state.lastManeuverKey=null;state.lastNavUpdate=0;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize({pan:false});setTimeout(()=>map.invalidateSize({pan:false}),120);if(state.gps)map.setView([state.gps.lat,state.gps.lng],17);updateNavigation(state.gps||state.route.start)})}
-function stopNavigation(){state.navigation=false;document.body.classList.remove('app-nav-active');clearRouteArrow();hidden('navigationTop',true);hidden('speed',true);hidden('navBar',true);hidden('planner',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.routeLine)map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})})}
+function startNavigation(){if(!state.route)return;state.navigation=true;state.spoken.clear();state.routeProgress=0;state.lastRouteIndex=0;state.lastProjection=null;state.lastManeuverDistance=null;state.lastManeuverKey=null;state.lastNavUpdate=0;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize({pan:false});setTimeout(()=>map.invalidateSize({pan:false}),120);if(state.gps)map.setView([state.gps.lat,state.gps.lng],17);updateNavigation(state.gps||state.route.start)})}
+function stopNavigation(){state.navigation=false;state.lastProjection=null;document.body.classList.remove('app-nav-active');clearRouteArrow();if(state.routeLine&&state.route)state.routeLine.setLatLngs(state.route.coords);hidden('navigationTop',true);hidden('speed',true);hidden('navBar',true);hidden('planner',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.routeLine)map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})})}
 
 $('calculateButton').onclick=calculateRoute;
 $('startButton').onclick=startNavigation;
@@ -355,12 +397,12 @@ $('voiceButton').onclick=()=>{state.voice=!state.voice;$('voiceButton').style.op
 $('gpsStartButton').onclick=async()=>{if(!state.gps)return alert('GPS ist noch nicht bereit');const label=await reverseGeocode(state.gps.lat,state.gps.lng);$('startInput').value=label;state.selected.start={lat:state.gps.lat,lng:state.gps.lng,label}};
 $('menuButton').onclick=()=>{$('planner').classList.toggle('closed');requestAnimationFrame(()=>map.invalidateSize())};
 document.querySelectorAll('.profile').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.profile').forEach(x=>x.classList.remove('active'));btn.classList.add('active');state.profile=btn.dataset.profile});
-map.on('moveend zoomend',()=>{if(state.navigation&&state.route?.steps[state.currentStep])drawNextArrow(state.currentStep)});
+map.on('moveend zoomend',()=>{if(state.navigation&&state.route?.steps[state.currentStep])drawNextArrow(state.currentStep,state.routeProgress)});
 function refreshMapLayout(){
   requestAnimationFrame(()=>{
     map.invalidateSize({pan:false});
     if(state.navigation&&state.route?.steps?.[state.currentStep]){
-      setTimeout(()=>drawNextArrow(state.currentStep),60);
+      setTimeout(()=>drawNextArrow(state.currentStep,state.routeProgress),60);
     }
   });
 }
