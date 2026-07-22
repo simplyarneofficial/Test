@@ -22,14 +22,14 @@ const TurnArrowLayer=L.Layer.extend({
     this._marker=document.createElementNS('http://www.w3.org/2000/svg','marker');
     const markerId=`turn-arrow-head-${L.Util.stamp(this)}`;
     this._marker.setAttribute('id',markerId);
-    this._marker.setAttribute('markerWidth','7');
-    this._marker.setAttribute('markerHeight','7');
-    this._marker.setAttribute('refX','5.8');
-    this._marker.setAttribute('refY','3.5');
+    this._marker.setAttribute('markerWidth','5.4');
+    this._marker.setAttribute('markerHeight','5.4');
+    this._marker.setAttribute('refX','4.6');
+    this._marker.setAttribute('refY','2.7');
     this._marker.setAttribute('orient','auto');
     this._marker.setAttribute('markerUnits','strokeWidth');
     const head=document.createElementNS('http://www.w3.org/2000/svg','path');
-    head.setAttribute('d','M 0 0 L 7 3.5 L 0 7 L 1.8 3.5 Z');
+    head.setAttribute('d','M 0 0 L 5.4 2.7 L 0 5.4 L 1.35 2.7 Z');
     head.setAttribute('fill','#ffffff');
     head.setAttribute('stroke','#2532a6');
     head.setAttribute('stroke-width','.75');
@@ -40,13 +40,14 @@ const TurnArrowLayer=L.Layer.extend({
     this._path=document.createElementNS('http://www.w3.org/2000/svg','path');
     this._path.setAttribute('fill','none');
     this._path.setAttribute('stroke','#ffffff');
-    this._path.setAttribute('stroke-width','9');
+    this._path.setAttribute('stroke-width','8');
     this._path.setAttribute('stroke-linecap','round');
     this._path.setAttribute('stroke-linejoin','round');
     this._path.setAttribute('marker-end',`url(#${markerId})`);
     this._path.style.filter='drop-shadow(0 0 2px #2532a6) drop-shadow(0 2px 3px rgba(0,0,0,.35))';
     this._svg.appendChild(this._path);
-    map.getPane('arrowPane').appendChild(this._svg);
+    map.getContainer().appendChild(this._svg);
+    this._svg.style.zIndex='445';
     map.on('zoom viewreset move resize',this._update,this);
     this._update();
   },
@@ -341,7 +342,7 @@ function onGps(position){const c=position.coords,now=performance.now(),raw={lat:
 function animate(){if(state.display&&state.target&&state.userMarker){state.display.lat+=(state.target.lat-state.display.lat)*.09;state.display.lng+=(state.target.lng-state.display.lng)*.09;const desired=state.target.heading??bearing(state.display,state.target);state.display.heading=smoothAngle(state.display.heading||0,desired||0);state.userMarker.setLatLng([state.display.lat,state.display.lng]);const el=state.userMarker.getElement()?.querySelector('.vehicle');if(el)el.style.transform=`rotate(${state.display.heading}deg)`;if(state.navigation){const point=map.latLngToContainerPoint([state.display.lat,state.display.lng]),wanted=L.point(map.getSize().x*.5,map.getSize().y*.62);if(point.distanceTo(wanted)>95)map.panTo([state.display.lat,state.display.lng],{animate:true,duration:.45})}}requestAnimationFrame(animate)}
 function startGps(){if(!navigator.geolocation){$('gpsBadge').textContent='GPS fehlt';return}state.watchId=navigator.geolocation.watchPosition(onGps,()=>{$('gpsBadge').textContent='GPS nicht verfügbar'},{enableHighAccuracy:true,maximumAge:500,timeout:15000})}
 
-function startNavigation(){if(!state.route)return;state.navigation=true;state.spoken.clear();state.routeProgress=0;state.lastRouteIndex=0;state.lastManeuverDistance=null;state.lastManeuverKey=null;state.lastNavUpdate=0;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.gps)map.setView([state.gps.lat,state.gps.lng],17);updateNavigation(state.gps||state.route.start)})}
+function startNavigation(){if(!state.route)return;state.navigation=true;state.spoken.clear();state.routeProgress=0;state.lastRouteIndex=0;state.lastManeuverDistance=null;state.lastManeuverKey=null;state.lastNavUpdate=0;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize({pan:false});setTimeout(()=>map.invalidateSize({pan:false}),120);if(state.gps)map.setView([state.gps.lat,state.gps.lng],17);updateNavigation(state.gps||state.route.start)})}
 function stopNavigation(){state.navigation=false;document.body.classList.remove('app-nav-active');clearRouteArrow();hidden('navigationTop',true);hidden('speed',true);hidden('navBar',true);hidden('planner',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.routeLine)map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})})}
 
 $('calculateButton').onclick=calculateRoute;
@@ -355,7 +356,17 @@ $('gpsStartButton').onclick=async()=>{if(!state.gps)return alert('GPS ist noch n
 $('menuButton').onclick=()=>{$('planner').classList.toggle('closed');requestAnimationFrame(()=>map.invalidateSize())};
 document.querySelectorAll('.profile').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.profile').forEach(x=>x.classList.remove('active'));btn.classList.add('active');state.profile=btn.dataset.profile});
 map.on('moveend zoomend',()=>{if(state.navigation&&state.route?.steps[state.currentStep])drawNextArrow(state.currentStep)});
-window.addEventListener('resize',()=>requestAnimationFrame(()=>map.invalidateSize()));
+function refreshMapLayout(){
+  requestAnimationFrame(()=>{
+    map.invalidateSize({pan:false});
+    if(state.navigation&&state.route?.steps?.[state.currentStep]){
+      setTimeout(()=>drawNextArrow(state.currentStep),60);
+    }
+  });
+}
+window.addEventListener('resize',refreshMapLayout);
+window.addEventListener('orientationchange',()=>setTimeout(refreshMapLayout,180));
+window.visualViewport?.addEventListener('resize',refreshMapLayout);
 setInterval(()=>{$('speedValue').textContent=Math.round((state.speedSamples.reduce((a,b)=>a+b,0)/(state.speedSamples.length||1))*3.6)},350);
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
 startGps();
