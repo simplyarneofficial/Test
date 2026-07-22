@@ -1,4 +1,4 @@
-const CACHE='moped-navigator-v6';
+const CACHE='moped-navigator-v7';
 const CORE=['./','./index.html','./manifest.webmanifest','./assets/css/app.css','./assets/js/app.js'];
 self.addEventListener('install',event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)))});
 self.addEventListener('activate',event=>event.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))),self.clients.claim()])));
