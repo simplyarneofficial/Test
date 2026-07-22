@@ -22,8 +22,8 @@
   <main>
     <aside id="planner" class="planner panel">
       <div class="planner-title"><div><small>NEUE ROUTE</small><h1>Wohin geht’s?</h1></div><span id="gpsBadge" class="status">GPS wird gesucht</span></div>
-      <label>Start<div class="input-combo"><input id="startInput" placeholder="Aktueller Standort oder Adresse"><button id="gpsStartButton">GPS</button></div></label>
-      <label>Ziel<input id="destinationInput" placeholder="Zieladresse eingeben"></label>
+      <label>Start<div class="autocomplete-wrap"><div class="input-combo"><input id="startInput" autocomplete="off" placeholder="Aktueller Standort oder Adresse"><button id="gpsStartButton">GPS</button></div><div id="startSuggestions" class="suggestions hidden"></div></div></label>
+      <label>Ziel<div class="autocomplete-wrap"><input id="destinationInput" autocomplete="off" placeholder="Zieladresse eingeben"><div id="destinationSuggestions" class="suggestions hidden"></div></div></label>
       <div class="profiles">
         <button class="profile active" data-profile="safe"><b>🛡</b><span>Sicher</span><small>Autobahn vermeiden</small></button>
         <button class="profile" data-profile="direct"><b>↗</b><span>Direkt</span><small>Weniger Umweg</small></button>
@@ -37,10 +37,10 @@
 
     <section class="map-wrap">
       <div id="map"></div>
-      <div id="instruction" class="instruction panel hidden">
+      <div id="navigationTop" class="navigation-top hidden"><div id="instruction" class="instruction panel">
         <div id="instructionIcon" class="instruction-icon">↑</div>
         <div><strong id="instructionDistance">–</strong><span id="instructionText">Route folgen</span><small id="instructionRoad"></small></div>
-      </div>
+      </div><button id="quickStopButton" class="quick-stop" aria-label="Navigation beenden">×</button></div>
       <div class="map-actions">
         <button id="recenterButton" title="Zentrieren">⌖</button>
         <button id="voiceButton" title="Sprachausgabe">🔊</button>
