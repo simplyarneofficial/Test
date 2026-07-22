@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="Navigation für Mopeds und Fahrzeuge bis 50 km/h">
+  <title>Moped Navigator</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+<div id="app">
+  <header class="app-bar">
+    <button id="menuButton" class="round-button" aria-label="Routenplanung öffnen">☰</button>
+    <div class="brand"><img src="assets/icons/icon.svg" alt=""><div><strong>Moped Navigator</strong><span>Navigation bis 50 km/h</span></div></div>
+    <button id="locationButton" class="round-button" aria-label="Standort zentrieren">⌖</button>
+  </header>
+
+  <main>
+    <aside id="planner" class="planner panel">
+      <div class="planner-title"><div><small>NEUE ROUTE</small><h1>Wohin geht’s?</h1></div><span id="gpsBadge" class="status">GPS wird gesucht</span></div>
+      <label>Start<div class="input-combo"><input id="startInput" placeholder="Aktueller Standort oder Adresse"><button id="gpsStartButton">GPS</button></div></label>
+      <label>Ziel<input id="destinationInput" placeholder="Zieladresse eingeben"></label>
+      <div class="profiles">
+        <button class="profile active" data-profile="safe"><b>🛡</b><span>Sicher</span><small>Autobahn vermeiden</small></button>
+        <button class="profile" data-profile="direct"><b>↗</b><span>Direkt</span><small>Weniger Umweg</small></button>
+        <button class="profile" data-profile="calm"><b>≈</b><span>Ruhig</span><small>Weniger Hauptstraßen</small></button>
+      </div>
+      <button id="calculateButton" class="primary">Route berechnen</button>
+      <div id="routeResult" class="route-result hidden"></div>
+      <button id="startButton" class="success hidden">Navigation starten</button>
+      <p class="warning">Die tatsächliche Beschilderung hat immer Vorrang. Kraftfahrstraßen können durch öffentliche Routingdaten nicht in jedem Fall sicher erkannt werden.</p>
+    </aside>
+
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div id="instruction" class="instruction panel hidden">
+        <div id="instructionIcon" class="instruction-icon">↑</div>
+        <div><strong id="instructionDistance">–</strong><span id="instructionText">Route folgen</span><small id="instructionRoad"></small></div>
+      </div>
+      <div class="map-actions">
+        <button id="recenterButton" title="Zentrieren">⌖</button>
+        <button id="voiceButton" title="Sprachausgabe">🔊</button>
+        <button id="overviewButton" title="Übersicht">↗</button>
+      </div>
+      <div id="speed" class="speed hidden"><strong id="speedValue">0</strong><span>km/h</span></div>
+      <div id="navBar" class="nav-bar panel hidden">
+        <div><small>Restzeit</small><strong id="remainingTime">–</strong></div>
+        <div><small>Ankunft</small><strong id="arrivalTime">–</strong></div>
+        <div><small>Reststrecke</small><strong id="remainingDistance">–</strong></div>
+        <button id="stopButton">Beenden</button>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
