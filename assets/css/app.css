@@ -4,19 +4,25 @@
 
 .turn-arrow-head-wrap{background:transparent!important;border:0!important}.turn-arrow-head{width:34px;height:34px;transform-origin:50% 50%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}.turn-arrow-head svg{display:block;width:34px;height:34px}.leaflet-arrow-pane{z-index:650!important;pointer-events:none!important}
 
-/* Navigation camera: keep the vehicle arrow upright and rotate the map beneath it. */
+/* Heading-up camera: all geographic panes rotate together, so the vehicle stays on the route. */
 #map.navigation-bearing .leaflet-tile-pane,
 #map.navigation-bearing .leaflet-overlay-pane,
 #map.navigation-bearing .leaflet-shadow-pane,
 #map.navigation-bearing .leaflet-route-pane,
-#map.navigation-bearing .leaflet-arrow-pane{
+#map.navigation-bearing .leaflet-arrow-pane,
+#map.navigation-bearing .leaflet-marker-pane{
   transform:rotate(var(--map-bearing,0deg)) scale(1.42)!important;
   transform-origin:50% 50%!important;
-  transition:transform .12s linear;
+  will-change:transform;
 }
 #map.navigation-bearing .leaflet-marker-pane{z-index:650!important}
-#map.navigation-bearing .vehicle{transform:rotate(0deg)!important}
-
+#map.navigation-bearing .vehicle{
+  transform-origin:50% 50%!important;
+}
+#recenterButton.camera-unlocked{
+  border-color:rgba(53,201,255,.8)!important;
+  box-shadow:0 0 0 3px rgba(53,201,255,.18),0 12px 25px rgba(0,0,0,.25)!important;
+}
 /* True full-screen navigation, including iPhone landscape and Safari's dynamic viewport. */
 body.app-nav-active,body.app-nav-active #app{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;overflow:hidden!important}
 body.app-nav-active .app-bar,body.app-nav-active .planner{display:none!important}
@@ -36,22 +42,4 @@ body.app-nav-active .map-wrap,body.app-nav-active #map{position:absolute!importa
   body.app-nav-active .instruction strong{font-size:18px!important}
   body.app-nav-active .instruction span{font-size:13px!important}
   body.app-nav-active .nav-bar{width:min(590px,72vw)!important;padding:7px!important}
-}
-
-
-/* Smooth heading-up navigation camera. The vehicle stays centered and points upward. */
-#map.navigation-bearing .leaflet-tile-pane,
-#map.navigation-bearing .leaflet-overlay-pane,
-#map.navigation-bearing .leaflet-shadow-pane,
-#map.navigation-bearing .leaflet-route-pane,
-#map.navigation-bearing .leaflet-arrow-pane{
-  will-change:transform;
-  transform-origin:50% 50%!important;
-}
-#map.navigation-bearing .leaflet-marker-pane{
-  will-change:transform;
-}
-#map.navigation-bearing .vehicle{
-  transform:rotate(0deg)!important;
-  transform-origin:50% 50%!important;
 }
