@@ -37,3 +37,21 @@ body.app-nav-active .map-wrap,body.app-nav-active #map{position:absolute!importa
   body.app-nav-active .instruction span{font-size:13px!important}
   body.app-nav-active .nav-bar{width:min(590px,72vw)!important;padding:7px!important}
 }
+
+
+/* Smooth heading-up navigation camera. The vehicle stays centered and points upward. */
+#map.navigation-bearing .leaflet-tile-pane,
+#map.navigation-bearing .leaflet-overlay-pane,
+#map.navigation-bearing .leaflet-shadow-pane,
+#map.navigation-bearing .leaflet-route-pane,
+#map.navigation-bearing .leaflet-arrow-pane{
+  will-change:transform;
+  transform-origin:50% 50%!important;
+}
+#map.navigation-bearing .leaflet-marker-pane{
+  will-change:transform;
+}
+#map.navigation-bearing .vehicle{
+  transform:rotate(0deg)!important;
+  transform-origin:50% 50%!important;
+}
