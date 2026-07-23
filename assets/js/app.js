@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const state={map:null,gps:null,lastGps:null,display:null,target:null,userMarker:null,route:null,routeLine:null,routeArrowGroup:null,watchId:null,navigation:false,currentStep:0,voice:true,profile:'safe',speedSamples:[],spoken:new Set(),animating:false,autocompleteTimers:new Map(),selected:{start:null,destination:null},progressIndex:0,progressMeters:0,snapped:null,mapBearing:0,roundaboutMemory:null,displayMeters:null,lastFrameTime:0,lastVisualUpdate:0};
+const state={map:null,gps:null,lastGps:null,display:null,target:null,userMarker:null,route:null,routeLine:null,routeArrowGroup:null,watchId:null,navigation:false,currentStep:0,voice:true,profile:'safe',speedSamples:[],spoken:new Set(),animating:false,autocompleteTimers:new Map(),selected:{start:null,destination:null},progressIndex:0,progressMeters:0,snapped:null,mapBearing:0,roundaboutMemory:null,displayMeters:null,lastFrameTime:0,lastVisualUpdate:0,cameraLocked:false,internalCameraMove:false};
 
 const map=L.map('map',{zoomControl:false,preferCanvas:true}).setView([51.756,14.335],13);state.map=map;
 map.createPane('routePane');map.getPane('routePane').classList.add('leaflet-route-pane');
@@ -52,11 +52,30 @@ function snapToRoute(pos){
 }
 
 function setMapBearing(value,blend=.16){
-  if(!state.navigation)value=0;
+  if(!state.navigation||!state.cameraLocked)value=0;
   state.mapBearing=smoothAngle(state.mapBearing||0,value||0,blend);
   const root=document.getElementById('map');
   root.style.setProperty('--map-bearing',`${-state.mapBearing}deg`);
-  root.classList.toggle('navigation-bearing',state.navigation);
+  root.style.setProperty('--vehicle-counter-bearing',`${state.mapBearing}deg`);
+  root.classList.toggle('navigation-bearing',state.navigation&&state.cameraLocked);
+}
+function unlockCamera(){
+  if(!state.navigation||!state.cameraLocked)return;
+  state.cameraLocked=false;
+  setMapBearing(0,1);
+  document.getElementById('map').classList.remove('navigation-bearing');
+  $('recenterButton')?.classList.add('camera-unlocked');
+}
+function lockCamera(){
+  if(!state.navigation)return;
+  state.cameraLocked=true;
+  $('recenterButton')?.classList.remove('camera-unlocked');
+  const p=state.display||state.snapped||state.gps;
+  if(p){
+    state.internalCameraMove=true;
+    map.setView([p.lat,p.lng],Math.max(17,map.getZoom()),{animate:false});
+    requestAnimationFrame(()=>state.internalCameraMove=false);
+  }
 }
 function normalizedType(step){return String(step?.maneuver?.type||'').toLowerCase()}
 function isRoundaboutStep(step){
@@ -330,15 +349,21 @@ function animate(now){
     }
     state.userMarker.setLatLng([state.display.lat,state.display.lng]);
     const el=state.userMarker.getElement()?.querySelector('.vehicle');
-    if(el)el.style.transform=state.navigation?'rotate(0deg)':`rotate(${state.display.heading}deg)`;
+    if(el)el.style.transform=`rotate(${state.display.heading||0}deg)`;
     if(state.navigation){
-      const bearingAlpha=1-Math.exp(-dt/0.18);
+      const bearingAlpha=1-Math.exp(-dt/0.14);
       setMapBearing(state.display.heading||0,bearingAlpha);
-      const point=map.latLngToContainerPoint([state.display.lat,state.display.lng]);
-      const wanted=L.point(map.getSize().x*.5,map.getSize().y*.5);
-      const delta=point.subtract(wanted);
-      if(delta.distanceTo(L.point(0,0))>.35)map.panBy(delta.multiplyBy(Math.min(1,1-Math.exp(-dt/0.10))),{animate:false});
-      if(now-state.lastVisualUpdate>90){
+      if(state.cameraLocked){
+        const point=map.latLngToContainerPoint([state.display.lat,state.display.lng]);
+        const wanted=L.point(map.getSize().x*.5,map.getSize().y*.5);
+        const delta=point.subtract(wanted);
+        if(delta.distanceTo(L.point(0,0))>.35){
+          state.internalCameraMove=true;
+          map.panBy(delta.multiplyBy(Math.min(1,1-Math.exp(-dt/0.085))),{animate:false});
+          requestAnimationFrame(()=>state.internalCameraMove=false);
+        }
+      }
+      if(now-state.lastVisualUpdate>70){
         state.lastVisualUpdate=now;
         if(Number.isFinite(state.displayMeters)){
           state.progressMeters=Math.max(state.progressMeters,state.displayMeters);
@@ -352,19 +377,22 @@ function animate(now){
 }
 function startGps(){if(!navigator.geolocation){$('gpsBadge').textContent='GPS fehlt';return}state.watchId=navigator.geolocation.watchPosition(onGps,()=>{$('gpsBadge').textContent='GPS nicht verfügbar'},{enableHighAccuracy:true,maximumAge:500,timeout:15000})}
 
-function startNavigation(){if(!state.route)return;state.navigation=true;state.mapBearing=0;state.spoken.clear();state.progressIndex=0;state.progressMeters=0;state.displayMeters=null;state.snapped=null;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize(true);setTimeout(()=>map.invalidateSize(true),120);if(state.gps)map.setView([state.gps.lat,state.gps.lng],17,{animate:false});updateNavigation(state.gps||state.route.start)})}
-function stopNavigation(){state.navigation=false;state.displayMeters=null;setMapBearing(0,1);document.body.classList.remove('app-nav-active');clearRouteArrow();if(state.routeLine&&state.route)state.routeLine.setLatLngs(state.route.coords);hidden('navigationTop',true);hidden('speed',true);hidden('navBar',true);hidden('planner',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.routeLine)map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})})}
+function startNavigation(){if(!state.route)return;state.navigation=true;state.cameraLocked=true;state.mapBearing=0;state.spoken.clear();state.progressIndex=0;state.progressMeters=0;state.displayMeters=null;state.snapped=null;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize(true);setTimeout(()=>map.invalidateSize(true),120);if(state.gps)map.setView([state.gps.lat,state.gps.lng],17,{animate:false});updateNavigation(state.gps||state.route.start)})}
+function stopNavigation(){state.navigation=false;state.cameraLocked=false;state.displayMeters=null;setMapBearing(0,1);document.body.classList.remove('app-nav-active');clearRouteArrow();if(state.routeLine&&state.route)state.routeLine.setLatLngs(state.route.coords);hidden('navigationTop',true);hidden('speed',true);hidden('navBar',true);hidden('planner',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.routeLine)map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})})}
 
 $('calculateButton').onclick=calculateRoute;
 $('startButton').onclick=startNavigation;
 $('stopButton').onclick=stopNavigation;
 $('quickStopButton').onclick=stopNavigation;
-$('locationButton').onclick=$('recenterButton').onclick=()=>{const p=state.snapped||state.gps;if(p)map.setView([p.lat,p.lng],17,{animate:false})};
-$('overviewButton').onclick=()=>state.routeLine&&map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]});
+$('locationButton').onclick=()=>{const p=state.snapped||state.gps;if(p)map.setView([p.lat,p.lng],17,{animate:false})};
+$('recenterButton').onclick=()=>{lockCamera()};
+$('overviewButton').onclick=()=>{unlockCamera();state.routeLine&&map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})};
 $('voiceButton').onclick=()=>{state.voice=!state.voice;$('voiceButton').style.opacity=state.voice?'1':'.45'};
 $('gpsStartButton').onclick=async()=>{if(!state.gps)return alert('GPS ist noch nicht bereit');const label=await reverseGeocode(state.gps.lat,state.gps.lng);$('startInput').value=label;state.selected.start={lat:state.gps.lat,lng:state.gps.lng,label}};
 $('menuButton').onclick=()=>{$('planner').classList.toggle('closed');requestAnimationFrame(()=>map.invalidateSize())};
 document.querySelectorAll('.profile').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.profile').forEach(x=>x.classList.remove('active'));btn.classList.add('active');state.profile=btn.dataset.profile});
+map.on('dragstart',()=>{if(state.navigation&&!state.internalCameraMove)unlockCamera()});
+map.on('zoomstart',event=>{if(state.navigation&&!state.internalCameraMove&&event.originalEvent)unlockCamera()});
 map.on('moveend zoomend',()=>{if(state.navigation)drawNextArrow(nextManeuverMeta())});
 const refreshMapSize=()=>requestAnimationFrame(()=>{map.invalidateSize(true);setTimeout(()=>{map.invalidateSize(true);if(state.navigation&&state.snapped)map.panTo([state.snapped.lat,state.snapped.lng],{animate:false});drawNextArrow(nextManeuverMeta())},120)});
 window.addEventListener('resize',refreshMapSize);
