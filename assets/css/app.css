@@ -3,3 +3,37 @@
 @media(orientation:landscape) and (max-height:620px){.app-bar{height:54px}.brand img{width:34px;height:34px}.brand strong{font-size:14px}.brand span{display:none}main{height:calc(100% - 54px);grid-template-columns:minmax(275px,32vw) 1fr}.planner{padding:14px 16px}.planner-title{margin-bottom:8px}.planner-title h1{font-size:20px}.planner label{margin:8px 0 4px}.planner input{height:42px;margin-top:4px}.input-combo button{margin-top:4px}.profiles{margin:10px 0;gap:6px}.profile{padding:7px 5px}.profile b{font-size:17px}.profile small{display:none}.primary,.success{height:44px}.warning{display:none}.navigation-top{top:10px;left:10px;max-width:calc(100% - 78px)}.instruction{min-width:0;width:min(510px,58vw);padding:9px 12px;border-radius:17px}.instruction-icon{width:52px;height:52px;font-size:36px;border-radius:14px}.instruction strong{font-size:20px}.instruction span{font-size:14px}.instruction small{font-size:10px}.map-actions{right:10px;top:10px;display:flex}.map-actions button{width:44px;height:44px}.nav-bar{left:auto;right:10px;bottom:10px;width:min(560px,70vw);grid-template-columns:repeat(3,1fr) 100px;padding:8px;border-radius:18px}.nav-bar>div{padding:3px 9px}.nav-bar button{height:42px;padding:0 10px}.speed{left:10px;right:auto;bottom:10px;width:66px;height:66px}.speed strong{font-size:25px}.app-nav-active .app-bar{display:none}.app-nav-active main{height:100%}.app-nav-active .map-wrap{height:100%}}
 
 .turn-arrow-head-wrap{background:transparent!important;border:0!important}.turn-arrow-head{width:34px;height:34px;transform-origin:50% 50%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}.turn-arrow-head svg{display:block;width:34px;height:34px}.leaflet-arrow-pane{z-index:650!important;pointer-events:none!important}
+
+/* Navigation camera: keep the vehicle arrow upright and rotate the map beneath it. */
+#map.navigation-bearing .leaflet-tile-pane,
+#map.navigation-bearing .leaflet-overlay-pane,
+#map.navigation-bearing .leaflet-shadow-pane,
+#map.navigation-bearing .leaflet-route-pane,
+#map.navigation-bearing .leaflet-arrow-pane{
+  transform:rotate(var(--map-bearing,0deg)) scale(1.42)!important;
+  transform-origin:50% 50%!important;
+  transition:transform .12s linear;
+}
+#map.navigation-bearing .leaflet-marker-pane{z-index:650!important}
+#map.navigation-bearing .vehicle{transform:rotate(0deg)!important}
+
+/* True full-screen navigation, including iPhone landscape and Safari's dynamic viewport. */
+body.app-nav-active,body.app-nav-active #app{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;overflow:hidden!important}
+body.app-nav-active .app-bar,body.app-nav-active .planner{display:none!important}
+body.app-nav-active main{position:fixed!important;inset:0!important;display:block!important;width:100vw!important;height:100dvh!important;min-width:0!important;grid-template-columns:none!important}
+body.app-nav-active .map-wrap,body.app-nav-active #map{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important}
+
+@media (orientation:landscape){
+  body.app-nav-active .navigation-top{top:max(10px,env(safe-area-inset-top))!important;left:max(12px,env(safe-area-inset-left))!important;right:auto!important;width:min(610px,58vw)!important;max-width:none!important}
+  body.app-nav-active .instruction{width:100%!important;min-width:0!important;max-width:none!important}
+  body.app-nav-active .map-actions{top:max(10px,env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}
+  body.app-nav-active .speed{left:max(14px,env(safe-area-inset-left))!important;right:auto!important;bottom:max(14px,env(safe-area-inset-bottom))!important}
+  body.app-nav-active .nav-bar{left:auto!important;right:max(14px,env(safe-area-inset-right))!important;bottom:max(14px,env(safe-area-inset-bottom))!important;width:min(650px,72vw)!important}
+}
+@media (orientation:landscape) and (max-height:430px){
+  body.app-nav-active .navigation-top{width:min(520px,56vw)!important}
+  body.app-nav-active .instruction-icon{width:48px!important;height:48px!important;font-size:33px!important}
+  body.app-nav-active .instruction strong{font-size:18px!important}
+  body.app-nav-active .instruction span{font-size:13px!important}
+  body.app-nav-active .nav-bar{width:min(590px,72vw)!important;padding:7px!important}
+}
