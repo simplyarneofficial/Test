@@ -51,64 +51,30 @@ function snapToRoute(pos){
   return best;
 }
 
-function applyCameraViewport(locked=state.navigation&&state.cameraLocked){
-  const mapEl=document.getElementById('map');
-  const wrap=mapEl.parentElement;
-  if(!wrap)return;
-  if(locked){
-    // A square with the viewport diagonal as side length prevents empty corners
-    // while rotating, without scaling or touching Leaflet's internal panes.
-    const rect=wrap.getBoundingClientRect();
-    const size=Math.ceil(Math.hypot(rect.width,rect.height))+8;
-    mapEl.style.width=`${size}px`;
-    mapEl.style.height=`${size}px`;
-    mapEl.style.left=`${(rect.width-size)/2}px`;
-    mapEl.style.top=`${(rect.height-size)/2}px`;
-  }else{
-    mapEl.style.width='100%';
-    mapEl.style.height='100%';
-    mapEl.style.left='0';
-    mapEl.style.top='0';
-  }
-  requestAnimationFrame(()=>map.invalidateSize(false));
-}
 function setMapBearing(value,blend=.16){
-  const locked=state.navigation&&state.cameraLocked;
-  if(!locked)value=0;
+  if(!state.navigation||!state.cameraLocked)value=0;
   state.mapBearing=smoothAngle(state.mapBearing||0,value||0,blend);
-  const mapEl=document.getElementById('map');
-  mapEl.classList.toggle('navigation-bearing',locked);
-  mapEl.style.transform=locked?`rotate(${-state.mapBearing}deg)`:'rotate(0deg)';
+  const root=document.getElementById('map');
+  root.style.setProperty('--map-bearing',`${-state.mapBearing}deg`);
+  root.style.setProperty('--vehicle-counter-bearing',`${state.mapBearing}deg`);
+  root.classList.toggle('navigation-bearing',state.navigation&&state.cameraLocked);
 }
 function unlockCamera(){
   if(!state.navigation||!state.cameraLocked)return;
-  const center=map.getCenter(),zoom=map.getZoom();
   state.cameraLocked=false;
-  state.mapBearing=0;
-  const mapEl=document.getElementById('map');
-  mapEl.classList.remove('navigation-bearing');
-  mapEl.style.transform='rotate(0deg)';
-  applyCameraViewport(false);
-  requestAnimationFrame(()=>{
-    state.internalCameraMove=true;
-    map.setView(center,zoom,{animate:false});
-    requestAnimationFrame(()=>state.internalCameraMove=false);
-  });
+  setMapBearing(0,1);
+  document.getElementById('map').classList.remove('navigation-bearing');
   $('recenterButton')?.classList.add('camera-unlocked');
 }
 function lockCamera(){
   if(!state.navigation)return;
   state.cameraLocked=true;
-  applyCameraViewport(true);
   $('recenterButton')?.classList.remove('camera-unlocked');
   const p=state.display||state.snapped||state.gps;
   if(p){
-    requestAnimationFrame(()=>{
-      state.internalCameraMove=true;
-      map.setView([p.lat,p.lng],Math.max(17,map.getZoom()),{animate:false});
-      setMapBearing(state.display?.heading||state.snapped?.heading||0,1);
-      requestAnimationFrame(()=>state.internalCameraMove=false);
-    });
+    state.internalCameraMove=true;
+    map.setView([p.lat,p.lng],Math.max(17,map.getZoom()),{animate:false});
+    requestAnimationFrame(()=>state.internalCameraMove=false);
   }
 }
 function normalizedType(step){return String(step?.maneuver?.type||'').toLowerCase()}
@@ -227,27 +193,93 @@ function setupAutocomplete(inputId,suggestionsId,key){
 setupAutocomplete('startInput','startSuggestions','start');
 setupAutocomplete('destinationInput','destinationSuggestions','destination');
 
-function routeUrls(a,b){
-  const path=`${a.lng},${a.lat};${b.lng},${b.lat}`;
-  const query='overview=full&geometries=geojson&steps=true&alternatives=false&continue_straight=true';
-  return[
-    `https://router.project-osrm.org/route/v1/driving/${path}?${query}`,
-    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${path}?${query}`
-  ];
+function decodePolyline6(encoded){
+  const coords=[];
+  let index=0,lat=0,lng=0;
+  while(index<encoded.length){
+    let result=0,shift=0,byte;
+    do{byte=encoded.charCodeAt(index++)-63;result|=(byte&31)<<shift;shift+=5}while(byte>=32&&index<encoded.length);
+    lat+=(result&1)?~(result>>1):(result>>1);
+    result=0;shift=0;
+    do{byte=encoded.charCodeAt(index++)-63;result|=(byte&31)<<shift;shift+=5}while(byte>=32&&index<encoded.length);
+    lng+=(result&1)?~(result>>1):(result>>1);
+    coords.push([lat/1e6,lng/1e6]);
+  }
+  return coords;
+}
+function valhallaManeuver(type){
+  const table={
+    1:['depart','straight'],2:['depart','right'],3:['depart','left'],
+    4:['arrive','straight'],5:['arrive','right'],6:['arrive','left'],
+    7:['turn','left'],8:['turn','right'],9:['turn','sharp left'],10:['turn','sharp right'],
+    11:['turn','slight left'],12:['turn','slight right'],13:['continue','straight'],
+    14:['uturn','right'],15:['uturn','left'],16:['on ramp','straight'],17:['on ramp','right'],18:['on ramp','left'],
+    19:['off ramp','right'],20:['off ramp','left'],21:['fork','straight'],22:['fork','right'],23:['fork','left'],
+    24:['merge','straight'],25:['roundabout','right'],26:['exit roundabout','right'],
+    27:['notification','straight'],28:['notification','straight']
+  };
+  const [maneuverType,modifier]=table[Number(type)]||['continue','straight'];
+  return{type:maneuverType,modifier};
+}
+function adaptValhallaRoute(data){
+  const trip=data?.trip;
+  if(!trip?.legs?.length)throw new Error(data?.error||data?.error_code||'Keine Mopedroute gefunden');
+  const coords=[];
+  const steps=[];
+  let coordinateOffset=0;
+  for(const leg of trip.legs){
+    const legCoords=decodePolyline6(leg.shape||'');
+    if(!legCoords.length)continue;
+    if(coords.length&&legCoords.length&&coords.at(-1)[0]===legCoords[0][0]&&coords.at(-1)[1]===legCoords[0][1])legCoords.shift();
+    const localOffset=coordinateOffset;
+    coords.push(...legCoords);
+    for(const item of leg.maneuvers||[]){
+      const begin=Math.max(0,Math.min(coords.length-1,localOffset+Number(item.begin_shape_index||0)));
+      const end=Math.max(begin,Math.min(coords.length-1,localOffset+Number(item.end_shape_index??item.begin_shape_index??0)));
+      const mapped=valhallaManeuver(item.type);
+      const exit=Number(item.roundabout_exit_count||item.roundabout_exit_number||0)||undefined;
+      steps.push({
+        distance:Number(item.length||0)*1000,
+        duration:Number(item.time||0),
+        name:(item.street_names||[])[0]||'',
+        instruction:item.instruction||item.verbal_transition_alert_instruction||'',
+        maneuver:{...mapped,location:[coords[begin][1],coords[begin][0]],exit},
+        geometry:{coordinates:coords.slice(begin,end+1).map(([lat,lng])=>[lng,lat])},
+        intersections:[]
+      });
+    }
+    coordinateOffset=coords.length;
+  }
+  if(coords.length<2)throw new Error('Der Moped-Routingdienst hat keine sichtbare Route geliefert');
+  const duration=Number(trip.summary?.time||trip.legs.reduce((sum,leg)=>sum+Number(leg.summary?.time||0),0));
+  const distanceMeters=Number(trip.summary?.length||trip.legs.reduce((sum,leg)=>sum+Number(leg.summary?.length||0),0))*1000;
+  return{
+    distance:distanceMeters,
+    duration,
+    geometry:{coordinates:coords.map(([lat,lng])=>[lng,lat])},
+    legs:[{steps}],
+    provider:'valhalla-motor-scooter'
+  };
+}
+function valhallaRouteUrl(a,b){
+  const request={
+    locations:[{lat:a.lat,lon:a.lng,type:'break'},{lat:b.lat,lon:b.lng,type:'break'}],
+    costing:'motor_scooter',
+    costing_options:{motor_scooter:{top_speed:45,use_primary:0.1,use_trails:0,shortest:false}},
+    directions_options:{units:'kilometers',language:'de-DE',narrative:true}
+  };
+  return`https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(request))}`;
 }
 async function fetchRoute(a,b){
-  let lastError;
-  for(const url of routeUrls(a,b)){
-    try{
-      const response=await fetch(url);
-      if(!response.ok)throw new Error(`Routing-Server ${response.status}`);
-      const data=await response.json();
-      if(data.code==='Ok'&&data.routes?.length)return data.routes[0];
-      throw new Error(data.message||'Keine Route gefunden');
-    }catch(error){lastError=error;console.warn('Routing-Versuch fehlgeschlagen',error)}
-  }
-  throw lastError||new Error('Keine Route gefunden');
+  const response=await fetch(valhallaRouteUrl(a,b),{
+    headers:{'Accept':'application/json','X-Client-Id':'moped-navigator-github-pages'}
+  });
+  let data=null;
+  try{data=await response.json()}catch{}
+  if(!response.ok)throw new Error(data?.error||`Moped-Routingdienst nicht erreichbar (${response.status})`);
+  return adaptValhallaRoute(data);
 }
+
 async function calculateRoute(){
   try{
     $('calculateButton').disabled=true;$('calculateButton').textContent='Route wird berechnet…';
@@ -411,8 +443,8 @@ function animate(now){
 }
 function startGps(){if(!navigator.geolocation){$('gpsBadge').textContent='GPS fehlt';return}state.watchId=navigator.geolocation.watchPosition(onGps,()=>{$('gpsBadge').textContent='GPS nicht verfügbar'},{enableHighAccuracy:true,maximumAge:500,timeout:15000})}
 
-function startNavigation(){if(!state.route)return;state.navigation=true;state.cameraLocked=true;state.mapBearing=0;applyCameraViewport(true);state.spoken.clear();state.progressIndex=0;state.progressMeters=0;state.displayMeters=null;state.snapped=null;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize(true);setTimeout(()=>map.invalidateSize(true),120);if(state.gps)map.setView([state.gps.lat,state.gps.lng],17,{animate:false});updateNavigation(state.gps||state.route.start)})}
-function stopNavigation(){state.navigation=false;state.cameraLocked=false;state.displayMeters=null;state.mapBearing=0;document.getElementById('map').style.transform='rotate(0deg)';applyCameraViewport(false);document.body.classList.remove('app-nav-active');clearRouteArrow();if(state.routeLine&&state.route)state.routeLine.setLatLngs(state.route.coords);hidden('navigationTop',true);hidden('speed',true);hidden('navBar',true);hidden('planner',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.routeLine)map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})})}
+function startNavigation(){if(!state.route)return;state.navigation=true;state.cameraLocked=true;state.mapBearing=0;state.spoken.clear();state.progressIndex=0;state.progressMeters=0;state.displayMeters=null;state.snapped=null;document.body.classList.add('app-nav-active');hidden('planner',true);hidden('navigationTop',false);hidden('speed',false);hidden('navBar',false);requestAnimationFrame(()=>{map.invalidateSize(true);setTimeout(()=>map.invalidateSize(true),120);if(state.gps)map.setView([state.gps.lat,state.gps.lng],17,{animate:false});updateNavigation(state.gps||state.route.start)})}
+function stopNavigation(){state.navigation=false;state.cameraLocked=false;state.displayMeters=null;setMapBearing(0,1);document.body.classList.remove('app-nav-active');clearRouteArrow();if(state.routeLine&&state.route)state.routeLine.setLatLngs(state.route.coords);hidden('navigationTop',true);hidden('speed',true);hidden('navBar',true);hidden('planner',false);requestAnimationFrame(()=>{map.invalidateSize();if(state.routeLine)map.fitBounds(state.routeLine.getBounds(),{padding:[40,40]})})}
 
 $('calculateButton').onclick=calculateRoute;
 $('startButton').onclick=startNavigation;
@@ -428,18 +460,7 @@ document.querySelectorAll('.profile').forEach(btn=>btn.onclick=()=>{document.que
 map.on('dragstart',()=>{if(state.navigation&&!state.internalCameraMove)unlockCamera()});
 map.on('zoomstart',event=>{if(state.navigation&&!state.internalCameraMove&&event.originalEvent)unlockCamera()});
 map.on('moveend zoomend',()=>{if(state.navigation)drawNextArrow(nextManeuverMeta())});
-const refreshMapSize=()=>requestAnimationFrame(()=>{
-  applyCameraViewport(state.navigation&&state.cameraLocked);
-  map.invalidateSize(true);
-  setTimeout(()=>{
-    map.invalidateSize(true);
-    if(state.navigation&&state.cameraLocked){
-      const p=state.display||state.snapped||state.gps;
-      if(p){state.internalCameraMove=true;map.panTo([p.lat,p.lng],{animate:false});requestAnimationFrame(()=>state.internalCameraMove=false)}
-    }
-    drawNextArrow(nextManeuverMeta());
-  },140);
-});
+const refreshMapSize=()=>requestAnimationFrame(()=>{map.invalidateSize(true);setTimeout(()=>{map.invalidateSize(true);if(state.navigation&&state.snapped)map.panTo([state.snapped.lat,state.snapped.lng],{animate:false});drawNextArrow(nextManeuverMeta())},120)});
 window.addEventListener('resize',refreshMapSize);
 window.addEventListener('orientationchange',()=>setTimeout(refreshMapSize,180));
 if(window.visualViewport)window.visualViewport.addEventListener('resize',refreshMapSize);
