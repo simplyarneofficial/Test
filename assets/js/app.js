@@ -382,8 +382,14 @@ function updateNavigation(pos){
   const dist=Math.max(0,maneuverMeters-state.progressMeters),ins=maneuver(next.step,next);
   $('instructionIcon').textContent=ins.icon;$('instructionDistance').textContent=dist<12?'Jetzt':fmtDistance(dist);$('instructionText').textContent=ins.text;$('instructionRoad').textContent=ins.road;
   drawNextArrow(next);
-  const left=remainingDistance(),speed=Math.max(5,state.speedSamples.at(-1)||8),seconds=left/speed;
-  $('remainingDistance').textContent=fmtDistance(left);$('remainingTime').textContent=fmtTime(seconds);$('arrivalTime').textContent=new Date(Date.now()+seconds*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const left=remainingDistance();
+  const total=Math.max(1,state.route.meta?.total||state.route.distance||1);
+  const plannedDuration=Math.max(0,Number(state.route.duration)||0);
+  const remainingRatio=Math.max(0,Math.min(1,left/total));
+  const seconds=plannedDuration*remainingRatio;
+  $('remainingDistance').textContent=fmtDistance(left);
+  $('remainingTime').textContent=fmtTime(seconds);
+  $('arrivalTime').textContent=new Date(Date.now()+seconds*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
   if(snapped.d<55)speak(next.step,dist,ins);
 }
 
