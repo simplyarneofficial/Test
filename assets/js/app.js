@@ -57,7 +57,15 @@ function setMapBearing(value,blend=.16){
   const root=document.getElementById('map');
   root.style.setProperty('--map-bearing',`${-state.mapBearing}deg`);
   root.style.setProperty('--vehicle-counter-bearing',`${state.mapBearing}deg`);
-  root.classList.toggle('navigation-bearing',state.navigation&&state.cameraLocked);
+  const active=state.navigation&&state.cameraLocked;
+  const changed=root.classList.contains('navigation-bearing')!==active;
+  root.classList.toggle('navigation-bearing',active);
+  if(changed){
+    requestAnimationFrame(()=>{
+      map.invalidateSize({pan:false,animate:false});
+      setTimeout(()=>map.invalidateSize({pan:false,animate:false}),80);
+    });
+  }
 }
 function unlockCamera(){
   if(!state.navigation||!state.cameraLocked)return;
@@ -65,6 +73,7 @@ function unlockCamera(){
   setMapBearing(0,1);
   document.getElementById('map').classList.remove('navigation-bearing');
   $('recenterButton')?.classList.add('camera-unlocked');
+  requestAnimationFrame(()=>map.invalidateSize({pan:false,animate:false}));
 }
 function lockCamera(){
   if(!state.navigation)return;
@@ -73,8 +82,12 @@ function lockCamera(){
   const p=state.display||state.snapped||state.gps;
   if(p){
     state.internalCameraMove=true;
+    map.invalidateSize({pan:false,animate:false});
     map.setView([p.lat,p.lng],Math.max(17,map.getZoom()),{animate:false});
-    requestAnimationFrame(()=>state.internalCameraMove=false);
+    requestAnimationFrame(()=>{
+      state.internalCameraMove=false;
+      map.invalidateSize({pan:false,animate:false});
+    });
   }
 }
 function normalizedType(step){return String(step?.maneuver?.type||'').toLowerCase()}
@@ -209,14 +222,18 @@ function decodePolyline6(encoded){
 }
 function valhallaManeuver(type){
   const table={
+    0:['continue','straight'],
     1:['depart','straight'],2:['depart','right'],3:['depart','left'],
     4:['arrive','straight'],5:['arrive','right'],6:['arrive','left'],
-    7:['turn','left'],8:['turn','right'],9:['turn','sharp left'],10:['turn','sharp right'],
-    11:['turn','slight left'],12:['turn','slight right'],13:['continue','straight'],
-    14:['uturn','right'],15:['uturn','left'],16:['on ramp','straight'],17:['on ramp','right'],18:['on ramp','left'],
-    19:['off ramp','right'],20:['off ramp','left'],21:['fork','straight'],22:['fork','right'],23:['fork','left'],
-    24:['merge','straight'],25:['roundabout','right'],26:['exit roundabout','right'],
-    27:['notification','straight'],28:['notification','straight']
+    7:['continue','straight'],8:['continue','straight'],
+    9:['turn','slight right'],10:['turn','right'],11:['turn','sharp right'],
+    12:['uturn','right'],13:['uturn','left'],
+    14:['turn','sharp left'],15:['turn','left'],16:['turn','slight left'],
+    17:['on ramp','straight'],18:['on ramp','right'],19:['on ramp','left'],
+    20:['off ramp','right'],21:['off ramp','left'],
+    22:['fork','straight'],23:['fork','right'],24:['fork','left'],
+    25:['merge','straight'],26:['roundabout','right'],27:['exit roundabout','right'],
+    28:['ferry','straight'],29:['ferry','straight'],30:['ferry','straight']
   };
   const [maneuverType,modifier]=table[Number(type)]||['continue','straight'];
   return{type:maneuverType,modifier};
