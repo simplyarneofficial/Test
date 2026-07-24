@@ -4,11 +4,30 @@
 
 .turn-arrow-head-wrap{background:transparent!important;border:0!important}.turn-arrow-head{width:34px;height:34px;transform-origin:50% 50%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}.turn-arrow-head svg{display:block;width:34px;height:34px}.leaflet-arrow-pane{z-index:650!important;pointer-events:none!important}
 
-/* Heading-up camera: rotate the complete Leaflet map as one unit.
-   Never override Leaflet pane transforms; doing so desynchronizes tiles, routes and markers. */
+/* Heading-up camera. The Leaflet map always has a real width and height.
+   While locked it is enlarged around the center so rotation cannot expose empty corners. */
 .map-wrap{overflow:hidden}
-#map{position:absolute;left:0;top:0;transform-origin:50% 50%;will-change:transform}
-#map.navigation-bearing{transition:none}
+#map{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  min-width:100%;
+  min-height:100%;
+  transform-origin:50% 50%;
+  transform:rotate(0deg);
+  will-change:transform;
+  background:#d9e7d0;
+}
+#map.navigation-bearing{
+  inset:-22%;
+  width:144%;
+  height:144%;
+  min-width:144%;
+  min-height:144%;
+  transform:rotate(var(--map-bearing,0deg));
+  transition:none;
+}
 #recenterButton.camera-unlocked{
   border-color:rgba(53,201,255,.8)!important;
   box-shadow:0 0 0 3px rgba(53,201,255,.18),0 12px 25px rgba(0,0,0,.25)!important;
@@ -18,7 +37,8 @@ body.app-nav-active,body.app-nav-active #app{position:fixed!important;inset:0!im
 body.app-nav-active .app-bar,body.app-nav-active .planner{display:none!important}
 body.app-nav-active main{position:fixed!important;inset:0!important;display:block!important;width:100vw!important;height:100dvh!important;min-width:0!important;grid-template-columns:none!important}
 body.app-nav-active .map-wrap{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;overflow:hidden!important}
-body.app-nav-active #map{position:absolute!important;min-width:0!important}
+body.app-nav-active #map{position:absolute!important}
+body.app-nav-active #map:not(.navigation-bearing){inset:0!important;width:100%!important;height:100%!important;min-width:100%!important;min-height:100%!important}
 
 @media (orientation:landscape){
   body.app-nav-active .navigation-top{top:max(10px,env(safe-area-inset-top))!important;left:max(12px,env(safe-area-inset-left))!important;right:auto!important;width:min(610px,58vw)!important;max-width:none!important}
