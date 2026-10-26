@@ -1,0 +1,55 @@
+
+name: Extract ZIP and publish website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Klaus_Gebler_responsive.zip'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Extract website ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p extracted site
+          unzip -q Klaus_Gebler_responsive.zip -d extracted
+          index_file="$(find extracted -type f -name index.html -print -quit)"
+          if [ -z "$index_file" ]; then
+            echo "No index.html found in ZIP"
+            exit 1
+          fi
+          site_root="$(dirname "$index_file")"
+          cp -a "$site_root"/. site/
+          touch site/.nojekyll
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy website
+        id: deployment
+        uses: actions/deploy-pages@v4
